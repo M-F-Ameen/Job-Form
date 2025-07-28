@@ -288,9 +288,12 @@ app.delete('/api/applications/:id', async (req, res) => {
 // Download CV endpoint
 app.get('/api/applications/:id/cv', async (req, res) => {
     try {
+        console.log('📄 Download CV request for ID:', req.params.id);
+        
         const application = await JobApplication.findById(req.params.id);
         
         if (!application) {
+            console.log('❌ Application not found for ID:', req.params.id);
             return res.status(404).json({ 
                 success: false, 
                 error: 'Application not found' 
@@ -298,33 +301,65 @@ app.get('/api/applications/:id/cv', async (req, res) => {
         }
         
         if (!application.cvFilename) {
+            console.log('❌ No CV filename for application:', application._id);
             return res.status(404).json({ 
                 success: false, 
                 error: 'CV not found for this application' 
             });
         }
         
-        const cvPath = path.join(__dirname, 'uploads', application.cvFilename);
+        console.log('📄 CV filename from database:', application.cvFilename);
         
-        if (!fs.existsSync(cvPath)) {
+        const cvPath = path.join(__dirname, 'uploads', application.cvFilename);
+        console.log('📄 Full CV path:', cvPath);
+        
+        // Check if file exists
+        const fileExists = fs.existsSync(cvPath);
+        console.log('📄 File exists:', fileExists);
+        
+        if (!fileExists) {
+            // List files in uploads directory for debugging
+            const uploadsDir = path.join(__dirname, 'uploads');
+            let filesInDir = [];
+            try {
+                if (fs.existsSync(uploadsDir)) {
+                    filesInDir = fs.readdirSync(uploadsDir);
+                }
+            } catch (err) {
+                console.error('❌ Error reading uploads directory:', err);
+            }
+            
+            console.log('📄 Files in uploads directory:', filesInDir);
+            console.log('❌ CV file not found on server');
+            
             return res.status(404).json({ 
                 success: false, 
-                error: 'CV file not found on server' 
+                error: 'CV file not found on server. This may happen if the server was restarted, as Railway uses ephemeral storage.',
+                debug: {
+                    requestedFile: application.cvFilename,
+                    availableFiles: filesInDir,
+                    uploadsDir: uploadsDir
+                }
             });
         }
         
         // Set filename for download
         const originalName = application.cvFilename.split('-').slice(2).join('-'); // Remove timestamp prefix
-        res.setHeader('Content-Disposition', `attachment; filename="CV_${application.fullName}_${originalName}"`);
+        const downloadFilename = `CV_${application.fullName}_${originalName}`;
+        
+        console.log('📄 Setting download filename:', downloadFilename);
+        
+        res.setHeader('Content-Disposition', `attachment; filename="${downloadFilename}"`);
         
         // Send the file
         res.sendFile(cvPath);
+        console.log('✅ CV file sent successfully');
         
     } catch (error) {
         console.error('❌ Error downloading CV:', error);
         res.status(500).json({ 
             success: false, 
-            error: 'Failed to download CV' 
+            error: 'Failed to download CV: ' + error.message
         });
     }
 });

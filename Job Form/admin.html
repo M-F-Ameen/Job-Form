@@ -1040,6 +1040,23 @@
                 
                 if (!response.ok) {
                     const errorData = await response.json();
+                    
+                    // Check if it's a file not found error (Railway ephemeral storage issue)
+                    if (errorData.error && errorData.error.includes('CV file not found on server')) {
+                        console.log('📄 Railway ephemeral storage issue detected');
+                        console.log('📄 Debug info:', errorData.debug);
+                        
+                        // Show a more helpful error message
+                        const message = '❌ السيرة الذاتية غير متاحة للتحميل.\n\n' +
+                                       'هذا يحدث لأن Railway يحذف الملفات عند إعادة تشغيل الخادم.\n\n' +
+                                       'للحصول على ملفات دائمة، يرجى:\n' +
+                                       '1. استخدام خدمة تخزين سحابية مثل AWS S3\n' +
+                                       '2. أو إعادة رفع الملف بعد إعادة تشغيل الخادم';
+                        
+                        alert(message);
+                        return;
+                    }
+                    
                     throw new Error(errorData.error || 'Failed to download CV');
                 }
                 
