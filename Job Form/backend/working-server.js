@@ -7,6 +7,7 @@ require('dotenv').config();
 
 // Import multer upload middleware
 const upload = require('./middleware/upload');
+const multer = require('multer');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -29,8 +30,15 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Create uploads directory if it doesn't exist
 const uploadsDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir, { recursive: true });
+try {
+    if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+        console.log('✅ Uploads directory created:', uploadsDir);
+    } else {
+        console.log('✅ Uploads directory already exists:', uploadsDir);
+    }
+} catch (error) {
+    console.error('❌ Error creating uploads directory:', error);
 }
 
 // MongoDB Connection
@@ -62,6 +70,20 @@ app.get('/api/test', (req, res) => {
     });
 });
 
+// Test uploads directory
+app.get('/api/test-uploads', (req, res) => {
+    const uploadsDir = path.join(__dirname, 'uploads');
+    const exists = fs.existsSync(uploadsDir);
+    const files = exists ? fs.readdirSync(uploadsDir) : [];
+    
+    res.json({
+        uploadsDir: uploadsDir,
+        exists: exists,
+        files: files,
+        currentDir: __dirname
+    });
+});
+
 // Job Application Schema
 const jobApplicationSchema = new mongoose.Schema({
     fullName: { type: String, required: true },
@@ -86,6 +108,10 @@ const JobApplication = mongoose.model('JobApplication', jobApplicationSchema);
 // API Routes
 app.post('/api/applications/submit', upload.single('resume'), async (req, res) => {
     try {
+        console.log('📝 Received application submission');
+        console.log('📄 File info:', req.file ? req.file.filename : 'No file uploaded');
+        console.log('📋 Form data:', req.body);
+        
         const applicationData = req.body;
         
         // Add CV filename if file was uploaded
@@ -127,6 +153,33 @@ app.post('/api/applications/submit', upload.single('resume'), async (req, res) =
             error: 'Failed to save application' 
         });
     }
+});
+
+// Error handling middleware for multer
+app.use((error, req, res, next) => {
+    if (error instanceof multer.MulterError) {
+        console.error('❌ Multer error:', error);
+        if (error.code === 'LIMIT_FILE_SIZE') {
+            return res.status(400).json({
+                success: false,
+                error: '❌ حجم الملف كبير جداً. الحد الأقصى 5 ميجابايت'
+            });
+        }
+        return res.status(400).json({
+            success: false,
+            error: '❌ خطأ في رفع الملف: ' + error.message
+        });
+    }
+    
+    if (error) {
+        console.error('❌ General error:', error);
+        return res.status(500).json({
+            success: false,
+            error: '❌ حدث خطأ في الخادم: ' + error.message
+        });
+    }
+    
+    next();
 });
 
 // Get all applications
@@ -282,6 +335,14 @@ app.get('/health', (req, res) => {
         status: 'OK', 
         timestamp: new Date().toISOString(),
         environment: process.env.NODE_ENV || 'development'
+    });
+});
+
+// 404 handler for API routes
+app.use('/api/*', (req, res) => {
+    res.status(404).json({
+        success: false,
+        error: 'API endpoint not found'
     });
 });
 
