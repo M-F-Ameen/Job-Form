@@ -2,7 +2,11 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 require('dotenv').config();
+
+// Import multer upload middleware
+const upload = require('./middleware/upload');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -19,6 +23,15 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../')));
+
+// Serve uploaded files
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Create uploads directory if it doesn't exist
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+}
 
 // MongoDB Connection
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://weallinsurgent:g5Q2IXBhoSgDLcv3@cluster0.nybvzhe.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
@@ -61,6 +74,7 @@ const jobApplicationSchema = new mongoose.Schema({
     skills: { type: String, required: true },
     expectedSalary: { type: String, default: '' },
     availabilityDate: { type: String, default: '' },
+    cvFilename: { type: String, default: '' }, // Store CV filename
     status: { type: String, default: 'pending' },
     reviewedBy: { type: String, default: '' },
     reviewedAt: { type: Date },
@@ -70,9 +84,15 @@ const jobApplicationSchema = new mongoose.Schema({
 const JobApplication = mongoose.model('JobApplication', jobApplicationSchema);
 
 // API Routes
-app.post('/api/applications/submit', async (req, res) => {
+app.post('/api/applications/submit', upload.single('resume'), async (req, res) => {
     try {
         const applicationData = req.body;
+        
+        // Add CV filename if file was uploaded
+        if (req.file) {
+            applicationData.cvFilename = req.file.filename;
+            console.log('📎 CV uploaded:', req.file.filename);
+        }
         
         // Create new application
         const newApplication = new JobApplication({
@@ -91,7 +111,8 @@ app.post('/api/applications/submit', async (req, res) => {
             major: savedApplication.major,
             graduationYear: savedApplication.graduationYear,
             applicationType: savedApplication.applicationType,
-            skills: savedApplication.skills
+            skills: savedApplication.skills,
+            cvFilename: savedApplication.cvFilename
         });
 
         res.json({ 
@@ -207,6 +228,50 @@ app.delete('/api/applications/:id', async (req, res) => {
         res.status(500).json({ 
             success: false, 
             error: 'Failed to delete application' 
+        });
+    }
+});
+
+// Download CV endpoint
+app.get('/api/applications/:id/cv', async (req, res) => {
+    try {
+        const application = await JobApplication.findById(req.params.id);
+        
+        if (!application) {
+            return res.status(404).json({ 
+                success: false, 
+                error: 'Application not found' 
+            });
+        }
+        
+        if (!application.cvFilename) {
+            return res.status(404).json({ 
+                success: false, 
+                error: 'CV not found for this application' 
+            });
+        }
+        
+        const cvPath = path.join(__dirname, 'uploads', application.cvFilename);
+        
+        if (!fs.existsSync(cvPath)) {
+            return res.status(404).json({ 
+                success: false, 
+                error: 'CV file not found on server' 
+            });
+        }
+        
+        // Set filename for download
+        const originalName = application.cvFilename.split('-').slice(2).join('-'); // Remove timestamp prefix
+        res.setHeader('Content-Disposition', `attachment; filename="CV_${application.fullName}_${originalName}"`);
+        
+        // Send the file
+        res.sendFile(cvPath);
+        
+    } catch (error) {
+        console.error('❌ Error downloading CV:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: 'Failed to download CV' 
         });
     }
 });

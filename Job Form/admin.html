@@ -123,6 +123,9 @@
         .btn-delete { background: #dc3545; color: white; }
         .btn-delete:hover { background: #c82333; }
         
+        .btn-download { background: #28a745; color: white; }
+        .btn-download:hover { background: #218838; }
+        
         .modal {
             display: none;
             position: fixed;
@@ -803,6 +806,7 @@
                     <div data-label="الحالة"><span class="status-badge ${statusClass}">${statusText}</span></div>
                     <div data-label="الإجراءات">
                         <button class="action-btn btn-view" onclick="viewApplication('${app._id}')" title="عرض">👁️<span> عرض</span></button>
+                        ${app.cvFilename ? `<button class="action-btn btn-download" onclick="downloadCV('${app._id}', '${app.fullName}')" title="تحميل السيرة الذاتية">📄<span> CV</span></button>` : ''}
                         <button class="action-btn btn-update" onclick="updateStatus('${app._id}')" title="تحديث">✏️<span> تحديث</span></button>
                         <button class="action-btn btn-delete" onclick="deleteApplication('${app._id}', '${app.fullName}')" title="حذف">🗑️<span> حذف</span></button>
                     </div>
@@ -898,6 +902,14 @@
                             ${app.expectedSalary ? `<p><strong>الراتب المتوقع:</strong> ${app.expectedSalary} جنيه مصري</p>` : ''}
                             ${app.availabilityDate ? `<p><strong>متاح من:</strong> ${new Date(app.availabilityDate).toLocaleDateString('ar-EG')}</p>` : ''}
                             <p><strong>المهارات:</strong> ${app.skills || 'غير محدد'}</p>
+                        </div>
+                        
+                        <div style="margin-bottom: 20px;">
+                            <h3>السيرة الذاتية</h3>
+                            ${app.cvFilename ? 
+                                `<p><strong>السيرة الذاتية:</strong> <button onclick="downloadCV('${app._id}', '${app.fullName}')" style="background: #28a745; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer;">📄 تحميل السيرة الذاتية</button></p>` 
+                                : '<p><strong>السيرة الذاتية:</strong> غير مرفقة</p>'
+                            }
                         </div>
                         
                         <div style="margin-bottom: 20px;">
@@ -1016,6 +1028,48 @@
             const modal = document.getElementById('applicationModal');
             if (event.target === modal) {
                 modal.style.display = 'none';
+            }
+        }
+
+        // Download CV function
+        async function downloadCV(id, fullName) {
+            try {
+                console.log('📄 Downloading CV for:', fullName, 'ID:', id);
+                
+                const response = await fetch(`${API_URL}/${id}/cv`);
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to download CV');
+                }
+                
+                // Get the filename from the response headers
+                const contentDisposition = response.headers.get('Content-Disposition');
+                let filename = `CV_${fullName}.pdf`;
+                
+                if (contentDisposition) {
+                    const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+                    if (filenameMatch) {
+                        filename = filenameMatch[1];
+                    }
+                }
+                
+                // Create blob and download
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = filename;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                window.URL.revokeObjectURL(url);
+                
+                console.log('✅ CV downloaded successfully');
+                
+            } catch (error) {
+                console.error('❌ Error downloading CV:', error);
+                alert('❌ فشل في تحميل السيرة الذاتية: ' + error.message);
             }
         }
 

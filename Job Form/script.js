@@ -110,21 +110,7 @@ form.addEventListener('submit', async function(e) {
         // إرسال البيانات إلى Backend API
         const response = await fetch(`${API_URL}/submit`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                fullName: document.getElementById('fullName').value,
-                email: document.getElementById('email').value,
-                phone: document.getElementById('phone').value,
-                governorate: document.getElementById('governorate').value,
-                major: document.getElementById('major').value,
-                graduationYear: document.getElementById('graduationYear').value,
-                applicationType: document.querySelector('input[name="applicationType"]:checked').value,
-                skills: document.getElementById('skills').value,
-                expectedSalary: jobRadio.checked ? document.getElementById('expectedSalary').value : '',
-                availabilityDate: jobRadio.checked ? document.getElementById('availabilityDate').value : ''
-            })
+            body: formData // Send FormData instead of JSON
         });
 
         const result = await response.json();
