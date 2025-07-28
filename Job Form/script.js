@@ -19,8 +19,8 @@ const jobFields = document.getElementById('jobFields');
 const jobRadio = document.getElementById('job');
 const internshipRadio = document.getElementById('internship');
 
-// Backend API URL
-const API_URL = 'http://localhost:3000/api/applications';
+// Backend API URL - dynamic for development and production
+const API_URL = window.location.origin + '/api/applications';
 
 // إظهار/إخفاء الحقول الإضافية عند اختيار نوع التقديم
 function toggleJobFields() {
